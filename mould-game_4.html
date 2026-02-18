@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Aspergillus Complex</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=Share+Tech+Mono&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c08; --surface: #0e1209; --border: #2a3a1a;
+    --text: #c8d4a0; --dim: #6a7a50; --accent: #a8c060;
+    --amber: #d4a840; --red: #c04040; --white: #e8ead8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Share Tech Mono', monospace; font-size: 17px;
+    min-height: 100vh; overflow-x: hidden; position: relative;
+  }
+  #spores {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none; z-index: 0; opacity: 0.4;
+  }
+  #game-wrapper {
+    position: relative; z-index: 1; max-width: 820px; margin: 0 auto;
+    padding: 20px; min-height: 100vh; display: flex; flex-direction: column;
+  }
+  header { border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 20px; }
+  .title-line { font-family: 'Special Elite', cursive; font-size: 30px; color: var(--white); letter-spacing: 0.05em; }
+  .subtitle { color: var(--dim); font-size: 13px; letter-spacing: 0.15em; text-transform: uppercase; margin-top: 4px; }
+  .status-bar { display: flex; gap: 24px; margin-top: 12px; font-size: 13px; color: var(--dim); flex-wrap: wrap; }
+  .status-bar span { color: var(--amber); }
+  #output {
+    flex: 1; overflow-y: auto; padding: 16px; background: var(--surface);
+    border: 1px solid var(--border); margin-bottom: 12px;
+    min-height: 420px; max-height: 60vh; scroll-behavior: smooth;
+  }
+  .msg { margin-bottom: 14px; line-height: 1.7; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:translateY(0); } }
+  .msg.narration  { color: var(--text); }
+  .msg.location   { font-family: 'Special Elite', cursive; color: var(--white); font-size: 20px; border-left: 2px solid var(--accent); padding-left: 12px; margin-top: 20px; }
+  .msg.dialogue   { font-family: 'IM Fell English', serif; font-style: italic; color: var(--amber); padding-left: 20px; border-left: 1px solid var(--border); }
+  .msg.system     { color: var(--dim); font-size: 14px; }
+  .msg.error      { color: var(--red); }
+  .msg.discovery  { color: var(--accent); border: 1px solid var(--border); padding: 10px 14px; background: rgba(168,192,96,0.04); }
+  .msg.player     { color: var(--dim); font-size: 14px; }
+  .msg.player::before { content: '> '; color: var(--accent); }
+  #choices { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+  .choice-btn {
+    background: transparent; border: 1px solid var(--border); color: var(--text);
+    font-family: 'Share Tech Mono', monospace; font-size: 15px; padding: 9px 14px;
+    cursor: pointer; text-align: left; transition: all 0.15s;
+  }
+  .choice-btn::before { content: attr(data-key) '. '; color: var(--accent); }
+  .choice-btn:hover { background: rgba(168,192,96,0.07); border-color: var(--accent); color: var(--white); }
+  #input-area { display: flex; gap: 8px; }
+  #cmd-input {
+    flex: 1; background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); font-family: 'Share Tech Mono', monospace; font-size: 16px;
+    padding: 10px 14px; outline: none; transition: border-color 0.2s;
+  }
+  #cmd-input::placeholder { color: var(--dim); }
+  #cmd-input:focus { border-color: var(--accent); }
+  #cmd-submit {
+    background: transparent; border: 1px solid var(--accent); color: var(--accent);
+    font-family: 'Share Tech Mono', monospace; font-size: 15px; padding: 10px 18px;
+    cursor: pointer; transition: all 0.15s;
+  }
+  #cmd-submit:hover { background: var(--accent); color: var(--bg); }
+  #notebook { margin-top: 16px; border: 1px solid var(--border); padding: 14px; background: var(--surface); }
+  .notebook-title { color: var(--dim); font-size: 13px; letter-spacing: 0.2em; text-transform: uppercase; margin-bottom: 10px; border-bottom: 1px solid var(--border); padding-bottom: 6px; }
+  .notebook-entry { color: var(--amber); font-family: 'IM Fell English', serif; font-style: italic; font-size: 15px; margin-bottom: 5px; padding-left: 10px; border-left: 1px solid var(--border); animation: fadeIn 0.4s ease; }
+  .notebook-empty { color: var(--dim); font-size: 14px; }
+  footer { margin-top: 16px; color: var(--dim); font-size: 13px; text-align: center; letter-spacing: 0.1em; border-top: 1px solid var(--border); padding-top: 12px; }
+</style>
+</head>
+<body>
+<canvas id="spores"></canvas>
+<div id="game-wrapper">
+  <header>
+    <div class="title-line">THE ASPERGILLUS COMPLEX</div>
+    <div class="subtitle">A Field Investigation into Azole-Resistant Fungal Spread</div>
+    <div class="status-bar">
+      Location: <span id="stat-location">&#8212;</span>
+      &nbsp;|&nbsp; Day: <span id="stat-day">1</span>
+      &nbsp;|&nbsp; Leads: <span id="stat-leads">0</span>
+      &nbsp;|&nbsp; Credibility: <span id="stat-cred">100</span>%
+    </div>
+  </header>
+  <div id="output"></div>
+  <div id="choices"></div>
+  <div id="input-area">
+    <input id="cmd-input" type="text" placeholder="type a number to choose, or: help, notes, inventory..." autocomplete="off" />
+    <button id="cmd-submit">ENTER</button>
+  </div>
+  <div id="notebook">
+    <div class="notebook-title">Field Notes</div>
+    <div id="notebook-entries"><span class="notebook-empty">Nothing recorded yet.</span></div>
+  </div>
+  <footer>An experimental game about AMR, agriculture, and the environment &mdash; developed from anthropological field research</footer>
+</div>
+<script>
+(function () {
+  "use strict";
+
+  // SPORES
+  var canvas = document.getElementById("spores");
+  var ctx = canvas.getContext("2d");
+  var sporeList = [];
+  function resizeCanvas() { canvas.width = window.innerWidth; canvas.height = window.innerHeight; }
+  resizeCanvas();
+  window.addEventListener("resize", resizeCanvas);
+  for (var si = 0; si < 60; si++) {
+    sporeList.push({ x: Math.random()*window.innerWidth, y: Math.random()*window.innerHeight, r: Math.random()*2+0.5, vx: (Math.random()-0.5)*0.3, vy: Math.random()*-0.4-0.1, alpha: Math.random()*0.6+0.1 });
+  }
+  function animateSpores() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (var i=0; i<sporeList.length; i++) {
+      var s = sporeList[i];
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+      ctx.fillStyle = "rgba(168,192,96,"+s.alpha+")"; ctx.fill();
+      s.x += s.vx; s.y += s.vy;
+      if (s.y < -10) { s.y = canvas.height+10; s.x = Math.random()*canvas.width; }
+      if (s.x < 0) s.x = canvas.width;
+      if (s.x > canvas.width) s.x = 0;
+    }
+    requestAnimationFrame(animateSpores);
+  }
+  animateSpores();
+
+  // ELEMENTS
+  var gameOut   = document.getElementById("output");
+  var choicesEl = document.getElementById("choices");
+  var notebookEl= document.getElementById("notebook-entries");
+  var cmdInput  = document.getElementById("cmd-input");
+  var cmdSubmit = document.getElementById("cmd-submit");
+
+  // STATE
+  var state = { location:"editorial_office", day:1, notebook:[], credibility:100, flags:{}, inventory:[] };
+
+  var LOCATIONS = {
+    editorial_office: "Editorial Office, Edinburgh",
+    hospital_ward:    "Infectious Disease Ward, NHS Lothian",
+    farm_borders:     "Arable Farm, Scottish Borders",
+    lab_aberdeen:     "Mycology Lab, Aberdeen",
+    tulip_field:      "Bulb Fields, Lincolnshire",
+    who_meeting:      "WHO Teleconference",
+    compost_site:     "Municipal Compost Site, Fife"
+  };
+
+  // HELPERS
+  function updateStatus() {
+    document.getElementById("stat-location").textContent = LOCATIONS[state.location] || "—";
+    document.getElementById("stat-day").textContent = state.day;
+    document.getElementById("stat-leads").textContent = state.notebook.length;
+    document.getElementById("stat-cred").textContent = state.credibility;
+  }
+
+  function say(text, type) {
+    var div = document.createElement("div");
+    div.className = "msg " + (type || "narration");
+    div.innerHTML = text;
+    gameOut.appendChild(div);
+    gameOut.scrollTop = gameOut.scrollHeight;
+  }
+
+  function note(text) {
+    state.notebook.push(text);
+    if (notebookEl.querySelector(".notebook-empty")) notebookEl.innerHTML = "";
+    var el = document.createElement("div");
+    el.className = "notebook-entry";
+    el.textContent = "— " + text;
+    notebookEl.appendChild(el);
+    updateStatus();
+  }
+
+  function clearChoices() { choicesEl.innerHTML = ""; }
+
+  function showChoices(choices) {
+    clearChoices();
+    choices.forEach(function(c, i) {
+      var btn = document.createElement("button");
+      btn.className = "choice-btn";
+      btn.dataset.key = i + 1;
+      btn.textContent = c.label;
+      btn.addEventListener("click", function() {
+        say(c.label, "player");
+        clearChoices();
+        c.action();
+      });
+      choicesEl.appendChild(btn);
+    });
+  }
+
+  function hasFlag(f)  { return !!state.flags[f]; }
+  function setFlag(f)  { state.flags[f] = true; }
+  function hasItem(it) { return state.inventory.indexOf(it) !== -1; }
+  function addItem(it) { if (!hasItem(it)) state.inventory.push(it); }
+
+  // TRAVEL HUB
+  function goBack() {
+    showChoices([
+      { label:"Go to the hospital ward",              action: sceneHospital },
+      { label:"Go to the farm in the Borders",        action: sceneFarm },
+      { label:"Go to the mycology lab in Aberdeen",   action: sceneLab },
+      { label:"Go to the compost site in Fife",       action: sceneCompost },
+      { label:"Follow the tulip industry lead",       action: sceneTulip },
+      { label:"Call a WHO contact",                   action: sceneWHO },
+      { label:"Return to Edinburgh and write the story", action: sceneWriteup }
+    ]);
+  }
+
+  // SCENE: EDITORIAL
+  function sceneEditorial() {
+    state.location = "editorial_office";
+    updateStatus();
+    say("EDITORIAL OFFICE", "location");
+    say("The newsroom smells of cold coffee and deadline anxiety. Your editor, <strong>Priya Mehta</strong>, drops a manila folder on your desk. Inside: a letter from a clinician at NHS Lothian, three papers from <em>The Lancet</em>, and a printed email trail from a microbiologist who says the regulator won\u2019t return his calls.");
+    say("\u201cResistance showing up in patients who\u2019ve never taken antifungals,\u201d Priya says. \u201cThat\u2019s your hook. Find where it\u2019s coming from.\u201d", "dialogue");
+    say("The folder is thin. The story may not be.");
+    showChoices([
+      { label:"Read the Lancet papers first", action: function() {
+        say("You skim three papers. The picture is unsettling: azole resistance in <em>Aspergillus fumigatus</em> \u2014 a common environmental mould \u2014 has been rising globally. The same resistance mutations found in patients appear in soil samples from agricultural land.");
+        note("TR34/L98H mutation found in patients AND environmental soil \u2014 identical genetic signature.");
+        say("\u201cThe resistance isn\u2019t coming from treating the patients,\u201d one author concludes. \u201cIt\u2019s coming in from outside.\u201d", "dialogue");
+        sceneEditorialDesk();
+      }},
+      { label:"Call the clinician who wrote the letter", action: function() {
+        say("Dr. Amara Diallo answers on the second ring. She sounds tired.");
+        say("\u201cI\u2019ve had four patients in six months. No prior azole treatment. Two didn\u2019t make it. I need someone to ask where this resistance is coming from \u2014 because it\u2019s not coming from my ward.\u201d", "dialogue");
+        note("Dr. Diallo, NHS Lothian \u2014 4 cases, 2 fatalities, no prior antifungal treatment.");
+        sceneEditorialDesk();
+      }},
+      { label:"Search online for background on azole resistance", action: function() {
+        say("Hundreds of results. Most point to fungicide use in agriculture \u2014 specifically DMI fungicides used on crops, which share a molecular target with medical azoles. The hypothesis: widespread agricultural use is selecting for resistance in wild mould populations.");
+        note("DMI fungicides in agriculture share mechanism with medical azoles \u2014 may drive resistance in wild Aspergillus.");
+        sceneEditorialDesk();
+      }}
+    ]);
+  }
+
+  function sceneEditorialDesk() {
+    say("<br>Priya reappears: <em>\u201cWhere do you want to start?\u201d</em>", "dialogue");
+    showChoices([
+      { label:"Go to the hospital \u2014 talk to Dr. Diallo in person", action: sceneHospital },
+      { label:"Head to a farm in the Borders",                         action: sceneFarm },
+      { label:"Contact the mycology lab in Aberdeen",                  action: sceneLab }
+    ]);
+  }
+
+  // SCENE: HOSPITAL
+  function sceneHospital() {
+    state.location = "hospital_ward";
+    updateStatus();
+    say("INFECTIOUS DISEASE WARD, NHS LOTHIAN", "location");
+    say("The ward is quiet. Dr. Diallo walks you past a row of side rooms. Most patients here are immunocompromised \u2014 cancer treatment, transplants, HIV.");
+    say("\u201cAspergillus is everywhere. In the air, in the soil, in compost. Healthy people breathe it in and nothing happens. For my patients, the spores germinate and invade. We\u2019ve always had azoles as our first line. Now, for some patients, they\u2019re not working.\u201d", "dialogue");
+    say("She pulls up a chart. The resistance profile matches TR34/L98H \u2014 the agricultural mutation.");
+    showChoices([
+      { label:"Ask about patient backgrounds \u2014 any farming connections?", action: function() {
+        if (!hasFlag("hosp_bg")) {
+          setFlag("hosp_bg");
+          say("\u201cFunny you ask. One patient was a gardener. One worked at a composting facility. But the others \u2014 a schoolteacher, a retired accountant. No obvious link to soil.\u201d", "dialogue");
+          note("Two patients had soil/compost contact \u2014 two did not. Exposure may be atmospheric, not direct.");
+        } else {
+          say("You\u2019ve already asked Dr. Diallo about patient backgrounds.", "system");
+        }
+        sceneBack(sceneHospital);
+      }},
+      { label:"Ask what treatment options remain if azoles fail", action: function() {
+        say("\u201cAmphotericin B. Expensive, toxic to the kidneys. Or combination therapy. We manage. But we\u2019re rationing options that didn\u2019t used to need rationing.\u201d", "dialogue");
+        note("Amphotericin B is fallback \u2014 toxic, expensive. Azole resistance is narrowing clinical options.");
+        sceneBack(sceneHospital);
+      }},
+      { label:"Ask if she has reported this to Public Health Scotland", action: function() {
+        say("\u201cReported, yes. Response?\u201d She pauses. \u201cWe\u2019re told it\u2019s being monitored.\u201d", "dialogue");
+        note("Regulatory response: \u201cmonitoring\u201d \u2014 Dr. Diallo frustrated with pace.");
+        sceneBack(sceneHospital);
+      }}
+    ]);
+  }
+
+  // SCENE: FARM
+  function sceneFarm() {
+    state.location = "farm_borders";
+    updateStatus();
+    say("ARABLE FARM, SCOTTISH BORDERS", "location");
+    say("The farm grows winter wheat and oilseed rape. Farmer <strong>Gordon Telfer</strong> meets you at the gate. The air smells of wet soil and something sharply chemical.");
+    say("\u201cAye, we use fungicides. Have done for thirty years. Tebuconazole, propiconazole. Without them the crop losses would be devastating. You\u2019d lose a third of the yield easy.\u201d", "dialogue");
+    showChoices([
+      { label:"Ask how often fungicides are applied", action: function() {
+        say("\u201cTwo, three times a season, sometimes more if the weather\u2019s wet. It\u2019s standard practice across the industry. We\u2019re not doing anything unusual.\u201d", "dialogue");
+        note("Azole fungicides applied 2\u20133 times per season \u2014 routine across UK arable farming.");
+        sceneBack(sceneFarm);
+      }},
+      { label:"Ask if he has heard of antifungal resistance in humans", action: function() {
+        say("\u201cIn people? No, I\u2019ve not heard anything about that. My chemicals are licensed. I follow the label.\u201d", "dialogue");
+        note("Farmers generally unaware of AMR link \u2014 not defensive, just uninformed.");
+        sceneBack(sceneFarm);
+      }},
+      { label:"Ask to collect a soil sample", action: function() {
+        if (!hasItem("soil_sample")) {
+          say("\u201cHelp yourself,\u201d Gordon says. You scrape dark loam into a sample bag. You\u2019ll need a lab to analyse it.");
+          note("Soil sample collected from fungicide-treated arable field \u2014 awaiting mycological analysis.");
+          say("[ITEM ADDED: Soil Sample]", "discovery");
+          addItem("soil_sample");
+        } else {
+          say("You already have a soil sample.", "system");
+        }
+        sceneBack(sceneFarm);
+      }}
+    ]);
+  }
+
+  // SCENE: LAB
+  function sceneLab() {
+    state.location = "lab_aberdeen";
+    updateStatus();
+    say("MYCOLOGY LAB, UNIVERSITY OF ABERDEEN", "location");
+    say("Dr. <strong>Rhona Mackinnon</strong> has been studying environmental <em>Aspergillus fumigatus</em> for twelve years. Lab walls are covered in false-colour micrographs \u2014 the fungus looks almost beautiful in cyan and gold.");
+    say("\u201cThe TR34/L98H mutation confers resistance to all medical azoles. We\u2019re finding it in 15\u201320% of environmental isolates from agricultural areas. That number was basically zero in the 1990s.\u201d", "dialogue");
+    showChoices([
+      { label:"Ask if she can analyse my soil sample", action: function() {
+        if (hasItem("soil_sample")) {
+          say("\u201cOf course. Leave it with me \u2014 I\u2019ll have a result in a week. I suspect you\u2019ll find what you\u2019re looking for.\u201d", "dialogue");
+          note("Soil sample submitted to Mackinnon lab \u2014 result pending.");
+          setFlag("lab_analysis");
+        } else {
+          say("\u201cDo you have a sample? Go get one and I\u2019ll run it.\u201d", "dialogue");
+          say("You don\u2019t have a soil sample yet. Try the farm in the Borders.", "system");
+        }
+        sceneBack(sceneLab);
+      }},
+      { label:"Ask why regulators have not acted", action: function() {
+        say("\u201cThe evidence has been there for a decade. Fungicides are regulated by agriculture, antifungals by medicine. Nobody owns the overlap. And the farming lobby is substantial.\u201d", "dialogue");
+        note("Regulatory gap: fungicides = agriculture dept; antifungals = health dept. No joined-up oversight.");
+        sceneBack(sceneLab);
+      }},
+      { label:"Ask what a solution would look like", action: function() {
+        say("\u201cRotation of fungicide classes. Reduced application rates. Stewardship programmes \u2014 same as antibiotic stewardship in medicine. It\u2019s not complicated. It\u2019s political.\u201d", "dialogue");
+        note("Solutions: fungicide rotation, stewardship programmes \u2014 political not scientific barrier.");
+        sceneBack(sceneLab);
+      }},
+      { label:"Ask about the tulip and bulb industry connection", action: function() {
+        say("\u201cAh. You\u2019ve done some reading. The Dutch bulb sector uses azole fungicides intensively. There\u2019s good evidence that resistant spores spread on the wind across the North Sea. Scotland, northern England \u2014 we\u2019re downwind.\u201d", "dialogue");
+        note("Dutch bulb sector: heavy azole use, spores may spread atmospherically to UK.");
+        setFlag("tulip_lead");
+        sceneBack(sceneLab);
+      }}
+    ]);
+  }
+
+  // SCENE: COMPOST
+  function sceneCompost() {
+    state.location = "compost_site";
+    updateStatus();
+    say("MUNICIPAL COMPOST SITE, FIFE", "location");
+    say("Site manager <strong>Euan Bryce</strong> hands you a hard hat and a paper dust mask. Turning windrows steam in the grey morning.");
+    say("\u201cWe process green waste from across the region. Garden clippings, food waste. Gets hot in the middle \u2014 kills most pathogens. But the edges...\u201d", "dialogue");
+    say("He trails off. The edges do not get hot enough.");
+    showChoices([
+      { label:"Ask about fungicide residues in the green waste", action: function() {
+        say("\u201cPeople put whatever they\u2019ve sprayed on their gardens in with the clippings. We have no visibility on that. It just comes in.\u201d", "dialogue");
+        note("Compost sites receive garden waste with unknown fungicide residues \u2014 no monitoring in place.");
+        sceneBack(sceneCompost);
+      }},
+      { label:"Ask about PPE for workers", action: function() {
+        say("\u201cTwelve staff. They\u2019ve got dust masks for when it\u2019s really bad. Health and safety say it\u2019s sufficient.\u201d", "dialogue");
+        say("He doesn\u2019t sound convinced.", "narration");
+        note("Compost workers potentially highly exposed to Aspergillus spores \u2014 PPE may be inadequate.");
+        sceneBack(sceneCompost);
+      }},
+      { label:"Take an air sample near the turning windrow", action: function() {
+        if (!hasItem("air_sample")) {
+          say("You hold up the sampling device. The counter ticks rapidly. Spore counts here are extraordinary \u2014 orders of magnitude above background urban levels.");
+          note("Spore counts at compost turning site: extremely elevated \u2014 significant exposure route confirmed.");
+          say("[ITEM ADDED: Air Sample Data]", "discovery");
+          addItem("air_sample");
+        } else {
+          say("You\u2019ve already taken an air sample here.", "system");
+        }
+        sceneBack(sceneCompost);
+      }}
+    ]);
+  }
+
+  // SCENE: TULIP
+  function sceneTulip() {
+    if (!hasFlag("tulip_lead")) {
+      say("You have no lead pointing here yet. Talk to the mycologist in Aberdeen first.", "system");
+      goBack();
+      return;
+    }
+    state.location = "tulip_field";
+    updateStatus();
+    say("BULB FIELDS, LINCOLNSHIRE", "location");
+    say("Flat fenland stretches to the horizon, the fields blazing with commercial tulip colour. You\u2019ve tracked down <strong>Marta Huisman</strong>, a Dutch agronomist consulting for the growers\u2019 association.");
+    say("\u201cOf course we use fungicides. Tulip fire, botrytis \u2014 without azoles we\u2019d lose entire fields. This is how it\u2019s always been done.\u201d", "dialogue");
+    showChoices([
+      { label:"Ask about studies linking bulb cultivation to resistance", action: function() {
+        say("\u201cThere are studies. We cooperate with them. But correlation is not causation \u2014 the researchers say so themselves. We are not the only source of azoles in the environment.\u201d", "dialogue");
+        note("Bulb industry acknowledges studies but disputes causation \u2014 points to multiple azole sources.");
+        sceneBack(sceneTulip);
+      }},
+      { label:"Ask about stewardship programmes in the Netherlands", action: function() {
+        say("\u201cWe introduced rotation guidelines since 2018. Voluntary, but widely adopted. It is more than most industries have done.\u201d", "dialogue");
+        note("Dutch growers: voluntary fungicide rotation since 2018. UK equivalent: none established.");
+        sceneBack(sceneTulip);
+      }},
+      { label:"Ask whether resistant spores could travel to Scotland on the wind", action: function() {
+        say("\u201cAspergillus fumigatus is an extremely efficient aerosol. The modelling suggests yes, in theory. But the UK also has its own agricultural sources.\u201d She meets your eyes. \u201cThis is a shared problem.\u201d", "dialogue");
+        note("Atmospheric dispersal from Dutch fields to UK: plausible per modelling. Multiple source countries.");
+        setFlag("atmospheric_dispersal");
+        sceneBack(sceneTulip);
+      }}
+    ]);
+  }
+
+  // SCENE: WHO
+  function sceneWHO() {
+    state.location = "who_meeting";
+    updateStatus();
+    say("WHO TELECONFERENCE", "location");
+    say("A crackly video call. Dr. <strong>Fatou Cisse</strong> is in Geneva, speaking in careful, measured English.");
+    say("\u201cWHO added azole-resistant Aspergillus fumigatus to its fungal priority pathogens list in 2022. The evidence that agricultural azoles are contributing is strong \u2014 not certain, but strong. The challenge is that nobody wants to own it.\u201d", "dialogue");
+    showChoices([
+      { label:"Ask what WHO is recommending", action: function() {
+        say("\u201cSurveillance. Stewardship. Research. What we need is political will \u2014 and that comes from public pressure, from journalism like yours.\u201d", "dialogue");
+        note("WHO: evidence \u201cstrong but not certain.\u201d Political will requires public pressure.");
+        sceneBack(sceneWHO);
+      }},
+      { label:"Ask whether fungal AMR is taken seriously enough", action: function() {
+        say("\u201cHonestly? No. Bacterial AMR gets the headlines, the funding, the emergency declarations. Fungi kill 1.5 million people a year. Almost nobody knows.\u201d", "dialogue");
+        note("Fungal AMR vastly underfunded vs bacterial AMR \u2014 estimated 1.5 million deaths per year.");
+        sceneBack(sceneWHO);
+      }}
+    ]);
+  }
+
+  // SCENE: WRITEUP
+  function sceneWriteup() {
+    state.location = "editorial_office";
+    state.day = 7;
+    updateStatus();
+    say("EDITORIAL OFFICE \u2014 DAY 7", "location");
+
+    var n            = state.notebook.length;
+    var hasMedical   = hasFlag("hosp_bg") || n > 0;
+    var hasAgri      = hasItem("soil_sample") || hasFlag("lab_analysis");
+    var hasAtmo      = hasFlag("atmospheric_dispersal");
+    var hasReg       = state.notebook.some(function(e){ return e.indexOf("Regulatory") !== -1 || e.indexOf("regulatory") !== -1; });
+
+    say("You have <strong>" + n + "</strong> field notes. Priya reads over your shoulder.");
+
+    if (n < 3) {
+      say("\u201cThis isn\u2019t enough. We can\u2019t run this \u2014 go back out and get more evidence.\u201d", "dialogue");
+      say("[You need at least 3 field notes before you can publish.]", "system");
+      goBack();
+      return;
+    }
+
+    say("You write through the night. The story takes shape:");
+    if (hasMedical) say("&#10003; Clinical evidence: resistance in patients with no prior treatment", "discovery");
+    if (hasAgri)    say("&#10003; Agricultural source: same mutation in farm soil and clinical isolates", "discovery");
+    if (hasAtmo)    say("&#10003; Atmospheric dispersal: spores travel on wind from farming regions", "discovery");
+    if (hasReg)     say("&#10003; Regulatory failure: agriculture and health not joined up", "discovery");
+
+    var score = [hasMedical, hasAgri, hasAtmo, hasReg].filter(Boolean).length;
+
+    setTimeout(function() {
+      say("<br>\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500", "system");
+      if (score >= 3) {
+        say("\u201cThis is good,\u201d Priya says quietly. \u201cThis is really good.\u201d", "dialogue");
+        say("<strong>THE INVISIBLE THREAT</strong><br><em>How a common garden mould is becoming untreatable \u2014 and why our farm chemicals may be to blame.</em><br><br>Published. Filed. Done. By Monday, a parliamentary question has been tabled.", "discovery");
+      } else if (score >= 1) {
+        say("\u201cIt\u2019s a start,\u201d Priya says. \u201cBut the agricultural link isn\u2019t solid enough. We\u2019d be exposed legally. Trim it down.\u201d", "dialogue");
+        say("The story runs \u2014 hedged, shorter, less impact.", "narration");
+      } else {
+        say("\u201cI can\u2019t run this,\u201d Priya says. \u201cThere\u2019s nothing here that links the clinical cases to an environmental source.\u201d", "dialogue");
+      }
+      say("<br>INVESTIGATION COMPLETE \u2014 Field notes: " + n + " | Story pillars: " + score + "/4 | Credibility: " + state.credibility + "%", "system");
+      showChoices([{ label:"Play again from the beginning", action: function() {
+        gameOut.innerHTML = "";
+        notebookEl.innerHTML = '<span class="notebook-empty">Nothing recorded yet.</span>';
+        choicesEl.innerHTML = "";
+        state.location = "editorial_office"; state.day = 1;
+        state.notebook = []; state.credibility = 100;
+        state.flags = {}; state.inventory = [];
+        updateStatus();
+        sceneEditorial();
+      }}]);
+    }, 600);
+  }
+
+  // SHARED BACK
+  function sceneBack(returnFn) {
+    showChoices([
+      { label:"Ask another question here",   action: returnFn },
+      { label:"Leave \u2014 go somewhere else", action: goBack }
+    ]);
+  }
+
+  // INPUT
+  function handleInput(raw) {
+    var cmd = raw.trim().toLowerCase();
+    if (!cmd) return;
+    cmdInput.value = "";
+    var num = parseInt(cmd, 10);
+    var btns = choicesEl.querySelectorAll(".choice-btn");
+    if (!isNaN(num) && num >= 1 && num <= btns.length) { btns[num-1].click(); return; }
+    say(cmd, "player");
+    if (cmd === "help") {
+      say("Commands: <strong>number</strong> to pick a choice | <strong>notes</strong> | <strong>inventory</strong> | <strong>look</strong>", "system");
+    } else if (cmd === "notes" || cmd === "notebook") {
+      if (!state.notebook.length) { say("No notes yet.", "system"); }
+      else { state.notebook.forEach(function(n){ say("\u2014 " + n, "system"); }); }
+    } else if (cmd === "inventory" || cmd === "inv") {
+      say("Carrying: " + (state.inventory.length ? state.inventory.join(", ") : "nothing"), "system");
+    } else if (cmd === "look") {
+      say("You are at: <strong>" + (LOCATIONS[state.location] || state.location) + "</strong>", "system");
+    } else {
+      say("Unknown command. Type <strong>help</strong> for options, or click/type a choice number.", "error");
+    }
+  }
+
+  cmdSubmit.addEventListener("click", function(){ handleInput(cmdInput.value); });
+  cmdInput.addEventListener("keydown", function(e){ if (e.key === "Enter") handleInput(cmdInput.value); });
+
+  // START
+  sceneEditorial();
+
+}());
+</script>
+</body>
+</html>
